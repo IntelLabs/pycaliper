@@ -1,0 +1,17 @@
+struct s_t (TYPE_T);
+    TYPE_T signal_a;
+    logic valid;
+    logic [4:0] data;
+    if (valid) def data[2:0];
+endstruct
+
+module test1(TYPE_T);
+
+    // inputs
+    input begin
+        def reset;
+        TYPE_T signal_b;
+        if (reset) s_t s;
+    end // input
+
+endmodule // fetch

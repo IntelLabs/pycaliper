@@ -1,0 +1,3 @@
+[submodule "btor2ex"]
+	path = btor2ex
+	url = git@github.com:adwait/btor2ex.git

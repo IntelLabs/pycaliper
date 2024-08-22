@@ -1,0 +1,10 @@
+.history/
+.vscode/
+
+__pycache__
+.python-version
+*.pyc
+
+*.log
+.run*
+dump
