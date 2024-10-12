@@ -1,0 +1,12 @@
+{
+    "jasper" : {
+        "jdir"      : "designs/explorertest",
+        "script"    : "hier.tcl",
+        "pycfile"   : "hier.pyc.sv",
+        "context"   : "<embedded>::TopModule"
+    },
+    "spec" : {
+        "pycspec" : "hier",
+        "k"         : 2
+    }
+}

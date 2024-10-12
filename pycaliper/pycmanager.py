@@ -27,6 +27,8 @@ class PYCTask(Enum):
     CTRLSYNTH = 3
     PERSYNTH = 4
     FULLSYNTH = 5
+    # new
+    EXPLORE = 6
 
 
 @dataclass
@@ -115,14 +117,17 @@ class PYCManager:
             return None
         return self.traces[random.randint(0, self.num_vcd_files - 1)]
 
-    def save_spec(self, module: Module):
+    def save_spec(self, module: Module, path: str = ""):
         # Create path
-        path = f"{self.specdir}/{self.pycspec}.spec{self.num_spec_files}.py"
-        self.specs[self.num_spec_files] = path
-        self.num_spec_files += 1
-
-        with open(path, "x") as f:
-            f.write(module.full_repr())
+        if path == "":
+            path = f"{self.specdir}/{self.pycspec}.spec{self.num_spec_files}.py"
+            self.specs[self.num_spec_files] = path
+            self.num_spec_files += 1
+            with open(path, "x") as f:
+                f.write(module.full_repr())
+        else:
+            with open(path, "w") as f:
+                f.write(module.full_repr())
 
         logger.info(f"Specification written to {path}.")
 
@@ -181,18 +186,43 @@ CONFIG_SCHEMA = {
 
 
 def create_module(specc, args):
-    specmod = specc["pycspec"]
-    params = specc.get("params", {})
+    """Dynamically import a module from a specified path and instantiate it."""
 
+    specmod : str = specc["pycspec"]
+    
+    params : dict = specc.get("params", {})
     parsed_conf = {}
     for pair in args.params:
         key, value = pair.split("=")
         parsed_conf[key] = int(value)
-
     params.update(parsed_conf)
 
-    mod = importlib.import_module(f"specs.{specmod}")
-    return getattr(mod, specmod)(**params)
+    if '/' in specmod:
+        # Split the module name into the module name and the parent package
+        module_name, module_path = specmod.rsplit('/', 1)
+
+        # Check if the path exists
+        if not os.path.isdir(module_path):
+            logger.error(f"Path '{module_path}' does not exist.")
+            exit(1)
+        # Add the module path to sys.path
+        sys.path.append(module_path)
+    
+        try:
+            # Import the module using importlib
+            module = importlib.import_module(module_name)
+            logger.debug(f"Successfully imported module: {module_name} from {module_path}")
+            return getattr(module, module_name)(**params)
+        except ImportError as e:
+            logger.debug(f"Error importing module {module_name} from {module_path}: {e}")
+            return None
+        finally:
+            # Clean up: remove the path from sys.path to avoid potential side effects
+            sys.path.remove(module_path)
+
+    else:
+        module = importlib.import_module(f"specs.{specmod}")
+        return getattr(module, specmod)(**params)
 
 
 def mock_or_connect(pyconfig: PYConfig):
@@ -251,12 +281,17 @@ def start(task: PYCTask, args) -> tuple[PYConfig, PYCManager, Module]:
 
     tmgr = PYCManager(pyconfig)
 
-    module = create_module(config.get("spec"), args)
+    if task != PYCTask.EXPLORE:
+        # Load the module from the specified path
+        module = create_module(config.get("spec"), args)
+    else:
+        # For design exploration, we don't need/have an existing module
+        module = Module("top")
 
     is_connected = mock_or_connect(pyconfig)
 
     match task:
-        case PYCTask.VERIF1T | PYCTask.VERIF2T | PYCTask.PERSYNTH | PYCTask.CTRLSYNTH:
+        case PYCTask.VERIF1T | PYCTask.VERIF2T | PYCTask.PERSYNTH | PYCTask.CTRLSYNTH | PYCTask.EXPLORE:
             if not is_connected:
                 logger.error(
                     f"Task {task} requires Jasper sockets, cannot be run in mock mode."

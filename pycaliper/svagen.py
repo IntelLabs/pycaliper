@@ -144,19 +144,19 @@ class SVAGen:
 
         # Generate wires for current modules
         (assigns_, decls_, input_decl) = self._gen_2t_comp(
-            mod, mod._input, Context.INPUT, a, b
+            mod, mod._pycinternal__input, Context.INPUT, a, b
         )
         assigns.update(assigns_)
         decls.update(decls_)
 
         (assigns_, decls_, state_decl) = self._gen_2t_comp(
-            mod, mod._state, Context.STATE, a, b
+            mod, mod._pycinternal__state, Context.STATE, a, b
         )
         assigns.update(assigns_)
         decls.update(decls_)
 
         (assigns_, decls_, output_decl) = self._gen_2t_comp(
-            mod, mod._output, Context.OUTPUT, a, b
+            mod, mod._pycinternal__output, Context.OUTPUT, a, b
         )
         assigns.update(assigns_)
         decls.update(decls_)

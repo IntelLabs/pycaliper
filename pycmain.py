@@ -8,6 +8,7 @@ from pycaliper.synth.persynthesis import PERSynthesizer
 from pycaliper.svagen import SVAGen
 from pycaliper.synth.alignsynthesis import AlignSynthesizer
 from pycaliper.pycmanager import PYCManager, PYConfig, start, PYCTask
+from pycaliper.jginterface.designexplorer import DesignExplorer
 
 
 h1 = logging.StreamHandler(sys.stdout)
@@ -92,6 +93,13 @@ def fullsynth_main(args):
 
     tmgr.save()
 
+def designexplorer_main(args):
+    pconfig, tmgr, _ = start(PYCTask.EXPLORE, args)
+    dexplorer = DesignExplorer(pconfig)
+    mod = dexplorer.generate_skeleton()
+    # Save the module
+    tmgr.save_spec(mod, args.dest)
+
 
 def main(args):
 
@@ -113,6 +121,8 @@ def main(args):
         "fullsynth", help="Synthesize 1t invariants followed by (cond)equality ones."
     )
     fullsynth.set_defaults(func=fullsynth_main)
+    explore = cmd.add_parser("explore", help="Explore design.")
+    explore.set_defaults(func=designexplorer_main)
 
     argparser.add_argument("path", type=str, help="Path to the JSON config file")
     argparser.add_argument(
@@ -132,14 +142,21 @@ def main(args):
         "-s", "--sdir", type=str, help="Directory to save results to.", default=""
     )
 
+
     verif.add_argument(
         "--onetrace",
         help="Verify only one-trace properties.",
         action="store_true",
         default=False,
     )
+    explore.add_argument(
+        "--dest",
+        type=str,
+        help="Output path for the pycaliper specification file.",
+        default="",
+    )
 
-    for c in [verif, persynth, svagen, alignsynth, fullsynth]:
+    for c in [verif, persynth, svagen, alignsynth, fullsynth, explore]:
         c.add_argument(
             "--params",
             nargs="+",
@@ -150,7 +167,7 @@ def main(args):
     args = argparser.parse_args(args)
 
     # Run main command
-    if args.cmd in ["verif", "persynth", "svagen", "alignsynth", "fullsynth"]:
+    if args.cmd in ["verif", "persynth", "svagen", "alignsynth", "fullsynth", "explore"]:
         args.func(args)
     else:
         argparser.print_help()
