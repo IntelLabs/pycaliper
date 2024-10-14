@@ -407,7 +407,7 @@ class Struct(TypedElem):
         self.params = kwargs
         self.path = Path([])
         self._signals: dict[str, TypedElem] = {}
-        self._state: list[PER] = []
+        self._pycinternal__state: list[PER] = []
 
     def _typ(self):
         return self.__class__.__name__
@@ -424,7 +424,7 @@ class Struct(TypedElem):
 
     def eq(self, expr: Expr) -> None:
         ceq = Eq(expr)
-        self._state.append(ceq)
+        self._pycinternal__state.append(ceq)
 
     def when(self, cond: Expr):
         def _lambda(*pers: PER):
@@ -438,7 +438,7 @@ class Struct(TypedElem):
                 else:
                     logger.error(f"Invalid PER type: {per}")
                     sys.exit(1)
-            self._state.extend(ceqs)
+            self._pycinternal__state.extend(ceqs)
 
         return _lambda
 
@@ -473,7 +473,7 @@ class Struct(TypedElem):
         for k, v in self._signals.items():
             s += f"\t{k} : {v._typ()}\n"
         s += "state:\n"
-        for i in self._state:
+        for i in self._pycinternal__state:
             s += f"\t{i}\n"
         return s
 
@@ -684,13 +684,13 @@ class Module:
         self._functions: dict[str, SVFunc] = {}
         self._submodules: dict[str, Module] = {}
         # PER specifications for input, state and output scopes
-        self._input: list[PER] = []
-        self._state: list[PER] = []
-        self._output: list[PER] = []
+        self._pycinternal__input: list[PER] = []
+        self._pycinternal__state: list[PER] = []
+        self._pycinternal__output: list[PER] = []
         # Single trace specifications for input, state and output scopes
-        self._input_invs: list[Inv] = []
-        self._state_invs: list[Inv] = []
-        self._output_invs: list[Inv] = []
+        self._pycinternal__input_invs: list[Inv] = []
+        self._pycinternal__state_invs: list[Inv] = []
+        self._pycinternal__output_invs: list[Inv] = []
         # PER holes
         self._perholes: list[PERHole] = []
         # CtrAlign holes
@@ -717,11 +717,11 @@ class Module:
             elif isinstance(elem, Struct):
                 logger.error("Structs are not yet supported in Eq invariants.")
         if self._context == Context.INPUT:
-            self._input.extend(eqs)
+            self._pycinternal__input.extend(eqs)
         elif self._context == Context.STATE:
-            self._state.extend(eqs)
+            self._pycinternal__state.extend(eqs)
         elif self._context == Context.OUTPUT:
-            self._output.extend(eqs)
+            self._pycinternal__output.extend(eqs)
         else:
             raise Exception("Invalid context")
 
@@ -733,11 +733,11 @@ class Module:
             ctx (Context): the context to add this invariant under.
         """
         if ctx == Context.INPUT:
-            self._input_invs.append(Eq(elem))
+            self._pycinternal__input_invs.append(Eq(elem))
         elif ctx == Context.STATE:
-            self._state_invs.append(Eq(elem))
+            self._pycinternal__state_invs.append(Eq(elem))
         else:
-            self._output_invs.append(Eq(elem))
+            self._pycinternal__output_invs.append(Eq(elem))
 
     def when(self, cond: Expr) -> Callable:
         """Conditional equality PER.
@@ -761,11 +761,11 @@ class Module:
                     logger.error(f"Invalid PER type: {per}")
                     sys.exit(1)
                 if self._context == Context.INPUT:
-                    self._input.extend(ceqs)
+                    self._pycinternal__input.extend(ceqs)
                 elif self._context == Context.STATE:
-                    self._state.extend(ceqs)
+                    self._pycinternal__state.extend(ceqs)
                 elif self._context == Context.OUTPUT:
-                    self._output.extend(ceqs)
+                    self._pycinternal__output.extend(ceqs)
 
         return _lambda
 
@@ -800,11 +800,11 @@ class Module:
             expr (Expr): the invariant expression.
         """
         if self._context == Context.INPUT:
-            self._input_invs.append(Inv(expr))
+            self._pycinternal__input_invs.append(Inv(expr))
         elif self._context == Context.STATE:
-            self._state_invs.append(Inv(expr))
+            self._pycinternal__state_invs.append(Inv(expr))
         else:
-            self._output_invs.append(Inv(expr))
+            self._pycinternal__output_invs.append(Inv(expr))
 
     def _inv(self, expr: Expr, ctx: Context) -> None:
         """Add single trace invariants with the specified context.
@@ -814,11 +814,11 @@ class Module:
             ctx (Context): the context to add this invariant under.
         """
         if ctx == Context.INPUT:
-            self._input_invs.append(Inv(expr))
+            self._pycinternal__input_invs.append(Inv(expr))
         elif ctx == Context.STATE:
-            self._state_invs.append(Inv(expr))
+            self._pycinternal__state_invs.append(Inv(expr))
         else:
-            self._output_invs.append(Inv(expr))
+            self._pycinternal__output_invs.append(Inv(expr))
 
     def instantiate(self, path: Path = Path([])) -> "Module":
         """Instantiate the current Module.
@@ -889,13 +889,13 @@ class Module:
         for k, v in self._submodules.items():
             s += f"\t{k} : {v.__class__.__name__}\n"
         s += "input:\n"
-        for i in self._input:
+        for i in self._pycinternal__input:
             s += f"\t{i}\n"
         s += "state:\n"
-        for i in self._state:
+        for i in self._pycinternal__state:
             s += f"\t{i}\n"
         s += "output:\n"
-        for i in self._output:
+        for i in self._pycinternal__output:
             s += f"\t{i}\n"
         if self._perholes:
             s += "perholes:\n"
@@ -961,24 +961,24 @@ class Module:
 
         inputs = (
             ["\tdef input(self):"]
-            + [f"\t\t{repr(t)}" for t in self._input]
-            + [f"\t\t{repr(t)}" for t in self._input_invs]
+            + [f"\t\t{repr(t)}" for t in self._pycinternal__input]
+            + [f"\t\t{repr(t)}" for t in self._pycinternal__input_invs]
             + ["\t\tpass"]
         )
         inputstring = "\n".join(inputs)
 
         outputs = (
             ["\tdef output(self):"]
-            + [f"\t\t{repr(t)}" for t in self._output]
-            + [f"\t\t{repr(t)}" for t in self._output_invs]
+            + [f"\t\t{repr(t)}" for t in self._pycinternal__output]
+            + [f"\t\t{repr(t)}" for t in self._pycinternal__output_invs]
             + ["\t\tpass"]
         )
         outputstring = "\n".join(outputs)
 
         states = (
             ["\tdef state(self):"]
-            + [f"\t\t{repr(t)}" for t in self._state]
-            + [f"\t\t{repr(t)}" for t in self._state_invs]
+            + [f"\t\t{repr(t)}" for t in self._pycinternal__state]
+            + [f"\t\t{repr(t)}" for t in self._pycinternal__state_invs]
             + [f"\t\t{repr(t)}" for t in self._perholes if t.active]
             + ["\t\tpass"]
         )

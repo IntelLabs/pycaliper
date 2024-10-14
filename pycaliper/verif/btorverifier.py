@@ -35,13 +35,13 @@ class BTORVerifier2Trace(InvVerifier):
         condeq_assrts = []
 
         # Generate the assumptions and assertions
-        for p in self.topmod._input:
+        for p in self.topmod._pycinternal__input:
             match p:
                 case Eq():
                     eq_assms.append(p.logic)
                 case CondEq():
                     condeq_assms.append((p.cond, p.logic))
-        for p in self.topmod._state:
+        for p in self.topmod._pycinternal__state:
             match p:
                 case Eq():
                     eq_assms.append(p.logic)
@@ -49,7 +49,7 @@ class BTORVerifier2Trace(InvVerifier):
                 case CondEq():
                     condeq_assms.append((p.cond, p.logic))
                     condeq_assrts.append((p.cond, p.logic))
-        for p in self.topmod._output:
+        for p in self.topmod._pycinternal__output:
             match p:
                 case Eq():
                     eq_assrts.append(p.logic)

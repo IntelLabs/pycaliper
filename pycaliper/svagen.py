@@ -144,19 +144,19 @@ class SVAGen:
 
         # Generate wires for current modules
         (assigns_, decls_, input_decl) = self._gen_2t_comp(
-            mod, mod._input, Context.INPUT, a, b
+            mod, mod._pycinternal__input, Context.INPUT, a, b
         )
         assigns.update(assigns_)
         decls.update(decls_)
 
         (assigns_, decls_, state_decl) = self._gen_2t_comp(
-            mod, mod._state, Context.STATE, a, b
+            mod, mod._pycinternal__state, Context.STATE, a, b
         )
         assigns.update(assigns_)
         decls.update(decls_)
 
         (assigns_, decls_, output_decl) = self._gen_2t_comp(
-            mod, mod._output, Context.OUTPUT, a, b
+            mod, mod._pycinternal__output, Context.OUTPUT, a, b
         )
         assigns.update(assigns_)
         decls.update(decls_)
@@ -169,23 +169,23 @@ class SVAGen:
                 decls[declname] = f"logic {declname} {declsize};"
 
         input_inv_decl_comp = self._gen_1t_comp(
-            mod, mod._input_invs, Context.INPUT, a, b
+            mod, mod._pycinternal__input_invs, Context.INPUT, a, b
         )
         state_inv_decl_comp = self._gen_1t_comp(
-            mod, mod._state_invs, Context.STATE, a, b
+            mod, mod._pycinternal__state_invs, Context.STATE, a, b
         )
         output_inv_decl_comp = self._gen_1t_comp(
-            mod, mod._output_invs, Context.OUTPUT, a, b
+            mod, mod._pycinternal__output_invs, Context.OUTPUT, a, b
         )
 
         input_inv_decl_single = self._gen_1t_single(
-            mod, mod._input_invs, Context.INPUT, a
+            mod, mod._pycinternal__input_invs, Context.INPUT, a
         )
         state_inv_decl_single = self._gen_1t_single(
-            mod, mod._state_invs, Context.STATE, a
+            mod, mod._pycinternal__state_invs, Context.STATE, a
         )
         output_inv_decl_single = self._gen_1t_single(
-            mod, mod._output_invs, Context.OUTPUT, a
+            mod, mod._pycinternal__output_invs, Context.OUTPUT, a
         )
 
         self.specs[mod.path] = ModuleSpec(
