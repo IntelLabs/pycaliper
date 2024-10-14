@@ -8,3 +8,7 @@ __pycache__
 *.log
 .run*
 dump
+
+
+# Jasper directory
+jgproject/
