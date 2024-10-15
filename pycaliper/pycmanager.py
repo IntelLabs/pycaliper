@@ -24,9 +24,10 @@ class PYCTask(Enum):
     SVAGEN = 0
     VERIF1T = 1
     VERIF2T = 2
-    CTRLSYNTH = 3
-    PERSYNTH = 4
-    FULLSYNTH = 5
+    VERIFBMC = 3
+    CTRLSYNTH = 4
+    PERSYNTH = 5
+    FULLSYNTH = 6
 
 
 @dataclass
@@ -181,7 +182,8 @@ CONFIG_SCHEMA = {
 
 
 def create_module(specc, args):
-    specmod = specc["pycspec"]
+    """Dynamically import the spec module and create an instance of it."""
+    specmod : str = specc["pycspec"]
     params = specc.get("params", {})
 
     parsed_conf = {}
@@ -191,16 +193,40 @@ def create_module(specc, args):
 
     params.update(parsed_conf)
 
-    mod = importlib.import_module(f"specs.{specmod}")
-    return getattr(mod, specmod)(**params)
+    if '/' in specmod:
+        # Split the module name into the module name and the parent package
+        module_path, module_name = specmod.rsplit('/', 1)
+
+        # Check if the path exists
+        if not os.path.isdir(module_path):
+            logger.error(f"Path '{module_path}' does not exist.")
+            exit(1)
+        # Add the module path to sys.path
+        sys.path.append(module_path)
+    
+        try:
+            # Import the module using importlib
+            module = importlib.import_module(module_name)
+            logger.debug(f"Successfully imported module: {module_name} from {module_path}")
+            return getattr(module, module_name)(**params)
+        except ImportError as e:
+            logger.error(f"Error importing module {module_name} from {module_path}: {e}")
+            return None
+        finally:
+            # Clean up: remove the path from sys.path to avoid potential side effects
+            sys.path.remove(module_path)
+
+    else:
+        mod = importlib.import_module(f"specs.{specmod}")
+        return getattr(mod, specmod)(**params)
 
 
-def mock_or_connect(pyconfig: PYConfig):
+def mock_or_connect(pyconfig: PYConfig, port: int) -> bool:
     if pyconfig.mock:
         logger.info("Running in mock mode.")
         return False
     else:
-        jgc.connect_tcp("localhost", 8080)
+        jgc.connect_tcp("localhost", port)
         setjwd(pyconfig.jdir)
         return True
 
@@ -252,8 +278,9 @@ def start(task: PYCTask, args) -> tuple[PYConfig, PYCManager, Module]:
     tmgr = PYCManager(pyconfig)
 
     module = create_module(config.get("spec"), args)
+    assert module is not None, f"Module {config.get('spec')['pycspec']} not found."
 
-    is_connected = mock_or_connect(pyconfig)
+    is_connected = mock_or_connect(pyconfig, args.port)
 
     match task:
         case PYCTask.VERIF1T | PYCTask.VERIF2T | PYCTask.PERSYNTH | PYCTask.CTRLSYNTH:

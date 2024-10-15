@@ -11,8 +11,8 @@ from ..per import Module, PERHole, Context
 from pycaliper.svagen import SVAGen
 from pycaliper.jginterface.jgoracle import (
     prove,
-    prove_out_2t,
-    enable_assm_2t,
+    prove_out_induction_2t,
+    set_assm_induction_2t,
     is_pass,
     enable_assm,
     disable_assm,
@@ -128,7 +128,7 @@ class PERSynthesizer:
     def safe(self):
         if not self.synstate.checked:
             self.synstate.checked = True
-            return is_pass(prove_out_2t(self.psc.context))
+            return is_pass(prove_out_induction_2t(self.psc.context))
         return False
 
     def _synthesize(self):
@@ -178,7 +178,7 @@ class PERSynthesizer:
         # Enable and disable the right assumptions
         for cand in self.candidates:
             disable_assm(self.psc.context, cand)
-        enable_assm_2t(self.psc.context)
+        set_assm_induction_2t(self.psc.context, self.psc.k)
 
         invs = self._synthesize()
 

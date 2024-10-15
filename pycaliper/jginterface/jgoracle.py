@@ -105,7 +105,7 @@ def enable_assm(taskcon: str, assm: str):
     return res
 
 
-def enable_assm_1t(taskcon: str):
+def set_assm_induction_1t(taskcon: str, k: int):
     """Enable only 1-trace assumptions (required for 1 trace properties)
 
     Args:
@@ -115,9 +115,10 @@ def enable_assm_1t(taskcon: str):
     enable_assm(taskcon, "state_inv")
     disable_assm(taskcon, "input")
     disable_assm(taskcon, "state")
+    for i in range(k):
+        disable_assm(taskcon, f"step_{i}")
 
-
-def enable_assm_2t(taskcon: str):
+def set_assm_induction_2t(taskcon: str, k: int):
     """Enable all assumptions required for 2 trace properties
 
     Args:
@@ -127,15 +128,31 @@ def enable_assm_2t(taskcon: str):
     enable_assm(taskcon, "state")
     enable_assm(taskcon, "input_inv")
     enable_assm(taskcon, "state_inv")
+    for i in range(k):
+        disable_assm(taskcon, f"step_{i}")
+
+def set_assm_bmc(taskcon: str, k: int):
+    """Enable all assumptions required for 1 BMC trace properties"""
+    disable_assm(taskcon, "input")
+    disable_assm(taskcon, "state")
+    disable_assm(taskcon, "input_inv")
+    disable_assm(taskcon, "state_inv")
+    for i in range(k):
+        enable_assm(taskcon, f"step_{i}")
 
 
-def prove_out_1t(taskcon):
+def prove_out_induction_1t(taskcon) -> ProofResult:
     return prove(taskcon, "output_inv")
 
 
-def prove_out_2t(taskcon):
+def prove_out_induction_2t(taskcon) -> ProofResult:
     return prove(taskcon, "output")
 
+def prove_out_bmc(taskcon, k: int) -> list[ProofResult]:
+    results = []
+    for i in range(k):
+        results.append(prove(taskcon, f"step_{i}"))
+    return results
 
 def loadscript(script):
     # Get pwd

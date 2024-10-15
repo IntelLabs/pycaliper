@@ -3,7 +3,7 @@ import argparse
 import json
 import logging
 
-from pycaliper.verif.jgverifier import JGVerifier1Trace, JGVerifier2Trace
+from pycaliper.verif.jgverifier import JGVerifier1Trace, JGVerifier2Trace, JGVerifier1TraceBMC
 from pycaliper.synth.persynthesis import PERSynthesizer
 from pycaliper.svagen import SVAGen
 from pycaliper.synth.alignsynthesis import AlignSynthesizer
@@ -25,13 +25,19 @@ logger = logging.getLogger(__name__)
 
 
 def verif_main(args):
-
-    if args.onetrace:
-        pconfig, tmgr, module = start(PYCTask.VERIF1T, args)
-        verifier = JGVerifier1Trace(pconfig)
+    if not args.bmc:
+        if args.onetrace:
+            pconfig, tmgr, module = start(PYCTask.VERIF1T, args)
+            verifier = JGVerifier1Trace(pconfig)
+            logger.debug("Running single trace verification.")
+        else:
+            pconfig, tmgr, module = start(PYCTask.VERIF2T, args)
+            verifier = JGVerifier2Trace(pconfig)
+            logger.debug("Running two trace verification.")
     else:
-        pconfig, tmgr, module = start(PYCTask.VERIF2T, args)
-        verifier = JGVerifier2Trace(pconfig)
+        pconfig, tmgr, module = start(PYCTask.VERIFBMC, args)
+        verifier = JGVerifier1TraceBMC(pconfig)
+        logger.debug("Running BMC verification.")
 
     verifier.verify(module)
 
@@ -131,10 +137,22 @@ def main(args):
     argparser.add_argument(
         "-s", "--sdir", type=str, help="Directory to save results to.", default=""
     )
+    argparser.add_argument(
+        "--port",
+        type=int,
+        help="Port number to connect to Jasper server",
+        default=8080
+    )
 
     verif.add_argument(
         "--onetrace",
         help="Verify only one-trace properties.",
+        action="store_true",
+        default=False,
+    )
+    verif.add_argument(
+        "--bmc",
+        help="Perform verification with bounded model checking.",
         action="store_true",
         default=False,
     )

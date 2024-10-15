@@ -11,13 +11,16 @@ from .per import Module, Eq, Path, Context, PER, Inv, PERHole
 logger = logging.getLogger(__name__)
 
 
+COUNTER = "_pycinternal__counter"
+STEP = "_pycinternal__step"
+def step(k: int):
+    return f"{STEP}_{k}"
+
 def eq_sva(s: str):
     return f"eq_{s}"
 
-
 def condeq_sva(s: str):
     return f"condeq_{s}"
-
 
 TOP_INPUT_ASSUME_2T = "A_input"
 TOP_STATE_ASSUME_2T = "A_state"
@@ -27,6 +30,10 @@ TOP_INPUT_ASSUME_1T = "A_input_inv"
 TOP_STATE_ASSUME_1T = "A_state_inv"
 TOP_OUTPUT_ASSERT_1T = "P_output_inv"
 
+def TOP_STEP_ASSUME(k: int):
+    return f"A_step_{k}"
+def TOP_STEP_ASSERT(k: int):
+    return f"P_step_{k}"
 
 def per_sva(mod: Module, ctx: Context):
     if ctx == Context.INPUT:
@@ -203,8 +210,7 @@ class SVAGen:
 
         return (decls, assigns)
 
-    def generate_decls(self, check_pred: str, a: str = "a", b: str = "b"):
-        self.topmod.instantiate()
+    def generate_decls(self, a: str = "a", b: str = "b"):
 
         properties = []
 
@@ -221,11 +227,11 @@ class SVAGen:
         )
         properties.append(
             f"{TOP_STATE_ASSUME_1T} : assume property\n"
-            + f"\t(!({check_pred}) |-> ({state_props_1t}));"
+            + f"\t(!({STEP}) |-> ({state_props_1t}));"
         )
         properties.append(
             f"{TOP_OUTPUT_ASSERT_1T} : assert property\n"
-            + f"\t({check_pred} |-> ({state_props_1t} && {output_props_1t}));"
+            + f"\t({STEP} |-> ({state_props_1t} && {output_props_1t}));"
         )
 
         properties.append(
@@ -233,11 +239,11 @@ class SVAGen:
         )
         properties.append(
             f"{TOP_STATE_ASSUME_2T} : assume property\n"
-            + f"\t(!({check_pred}) |-> ({state_props_2t}));"
+            + f"\t(!({STEP}) |-> ({state_props_2t}));"
         )
         properties.append(
             f"{TOP_OUTPUT_ASSERT_2T} : assert property\n"
-            + f"\t({check_pred} |-> ({state_props_2t} && {output_props_2t}));"
+            + f"\t({STEP} |-> ({state_props_2t} && {output_props_2t}));"
         )
 
         for hole in self.topmod._perholes:
@@ -245,11 +251,11 @@ class SVAGen:
                 if isinstance(hole.per, Eq):
                     assm_prop = (
                         f"A_{eq_sva(hole.per.logic.get_hier_path_flatindex())} : assume property\n"
-                        + f"\t(!({check_pred}) |-> {eq_sva(hole.per.logic.get_hier_path('_'))});"
+                        + f"\t(!({STEP}) |-> {eq_sva(hole.per.logic.get_hier_path('_'))});"
                     )
                     asrt_prop = (
                         f"P_{eq_sva(hole.per.logic.get_hier_path_flatindex())} : assert property\n"
-                        + f"\t(({check_pred}) |-> {eq_sva(hole.per.logic.get_hier_path('_'))});"
+                        + f"\t(({STEP}) |-> {eq_sva(hole.per.logic.get_hier_path('_'))});"
                     )
                     self.holes[
                         eq_sva(hole.per.logic.get_hier_path_flatindex())
@@ -258,31 +264,64 @@ class SVAGen:
 
         return properties, self._generate_decls(self.topmod, a, b)
 
+    def generate_step_decls(self, k: int, a: str = "a") -> list[str]:
+        """
+        Generate properties for each step in the simulation
+
+        Args:
+            k (int): Number of steps
+            a (str, optional): Name of the first trace. Defaults to "a".
+
+        Returns:
+            list[str]: List of properties for each step
+        """ 
+        properties = []
+        for i in range(min(k, len(self.topmod._pycinternal__simsteps))):
+            assumes = [expr.get_sva(a) for expr in self.topmod._pycinternal__simsteps[i]._pycinternal__assume]
+            assume_spec = "(\n\t" + " && \n\t".join(assumes + ["1'b1"]) + ")"
+            asserts = [expr.get_sva(a) for expr in self.topmod._pycinternal__simsteps[i]._pycinternal__assert]
+            assert_spec = "(\n\t" + " && \n\t".join(asserts + ["1'b1"]) + ")"
+
+            properties.append(
+                f"{TOP_STEP_ASSUME(i)} : assume property\n"
+                + f"\t({step(i)} |-> {assume_spec});"
+            )
+            properties.append(
+                f"{TOP_STEP_ASSERT(i)} : assert property\n"
+                + f"\t({step(i)} |-> {assert_spec});"
+            )
+        
+        return properties
+
     def counter_step(self, k: int):
         # Create a counter with k steps
         counter_width = len(bin(k)) - 2
         vtype = f"logic [{counter_width-1}:0]" if counter_width > 1 else "logic"
         vlog = f"""
-    {vtype} counter;
-    always @(posedge clk) begin
-        if (fvreset) begin
-            counter <= 0;
-        end else begin
-            if (counter < {counter_width}'d{k}) begin
-                counter <= (counter + {counter_width}'b1);
-            end
-        end
-    end
-    logic step = (counter == {counter_width}'d{k});
+\t{vtype} {COUNTER};
+\talways @(posedge clk) begin
+\t    if (fvreset) begin
+\t        {COUNTER} <= 0;
+\t    end else begin
+\t        if ({COUNTER} < {counter_width}'d{k}) begin
+\t            {COUNTER} <= ({COUNTER} + {counter_width}'b1);
+\t        end
+\t    end
+\tend
+\tlogic {STEP} = ({COUNTER} == {counter_width}'d{k});
 """
+        for i in range(k):
+            vlog += f"\tlogic {step(i)} = ({COUNTER} == {counter_width}'d{i});\n"
         return vlog
 
+    
     def create_pyc_specfile(self, k: int, a="a", b="b", filename="temp.pyc.sv"):
 
         vlog = self.counter_step(k)
-        check_pred = f"step"
 
-        properties, all_decls = self.generate_decls(check_pred, a, b)
+        self.topmod.instantiate()
+        properties, all_decls = self.generate_decls(a, b)
+        properties.extend(self.generate_step_decls(k, a))
 
         with open(filename, "w") as f:
             f.write(vlog + "\n")
@@ -313,4 +352,4 @@ class SVAGen:
             f.write("\n\n".join(properties))
             f.write("\n")
 
-        logger.debug(f"Generated spec file: {filename}")
+        logger.info(f"Generated spec file: {filename}")

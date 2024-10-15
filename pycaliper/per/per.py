@@ -607,6 +607,7 @@ class Context(Enum):
     INPUT = 0
     STATE = 1
     OUTPUT = 2
+    UNROLL = 3
 
 
 class Hole:
@@ -660,6 +661,26 @@ def when(cond: Expr):
 
     return _lambda
 
+class SimulationStep:
+    
+    def __init__(self) -> None:
+        self._pycinternal__assume: list[Expr] = []
+        self._pycinternal__assert: list[Expr] = []
+    def _assume(self, expr: Expr):
+        self._pycinternal__assume.append(expr)
+    def _assert(self, expr: Expr):
+        self._pycinternal__assert.append(expr)
+
+
+def unroll(b: int):
+    def unroll_decorator(func):
+        def wrapper(self: Module, *args):
+            for i in range(b):
+                self._pycinternal__simstep = SimulationStep()
+                func(self, i)
+                self._pycinternal__simsteps.append(copy.deepcopy(self._pycinternal__simstep))
+        return wrapper
+    return unroll_decorator
 
 class Module:
     """Module class for specifications related to a SV HW module"""
@@ -691,6 +712,9 @@ class Module:
         self._pycinternal__input_invs: list[Inv] = []
         self._pycinternal__state_invs: list[Inv] = []
         self._pycinternal__output_invs: list[Inv] = []
+        # Non-invariant properties
+        self._pycinternal__simsteps: list[SimulationStep] = []
+        self._pycinternal__simstep : SimulationStep = SimulationStep()
         # PER holes
         self._perholes: list[PERHole] = []
         # CtrAlign holes
@@ -704,6 +728,9 @@ class Module:
         pass
 
     def output(self) -> None:
+        pass
+
+    def simstep(self, i: int = 0) -> None:
         pass
 
     def eq(self, *elems: TypedElem) -> None:
@@ -820,6 +847,29 @@ class Module:
         else:
             self._pycinternal__output_invs.append(Inv(expr))
 
+    def pycassert(self, expr: Expr) -> None:
+        """Add an assertion to the current context.
+
+        Args:
+            expr (Expr): the assertion expression.
+        """
+        if self._context == Context.UNROLL:
+            self._pycinternal__simstep._assert(expr)
+        else:
+            logger.warning("pycassert can only be used in the unroll context, skipping.")
+        
+    def pycassume(self, expr: Expr) -> None:
+        """Add an assumption to the current context.
+
+        Args:
+            expr (Expr): the assumption expression.
+        """
+        if self._context == Context.UNROLL:
+            self._pycinternal__simstep._assume(expr)
+        else:
+            logger.warning("pycassume can only be used in the unroll context, skipping.")
+
+
     def instantiate(self, path: Path = Path([])) -> "Module":
         """Instantiate the current Module.
 
@@ -872,6 +922,9 @@ class Module:
         self.state()
         self._context = Context.OUTPUT
         self.output()
+        # Run through simulation steps
+        self._context = Context.UNROLL
+        self.simstep()
         self._instantiated = True
         return self
 
@@ -902,6 +955,7 @@ class Module:
             for i in self._perholes:
                 s += f"\t{i.per} ({i.ctx})\n"
         return s
+
 
     def get_repr(self, reprs):
         # Find all submodules and structs that need to be defined
