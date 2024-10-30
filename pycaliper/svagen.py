@@ -81,6 +81,9 @@ class SVAGen:
 
         self.holes: dict[str, PERHole] = {}
 
+        self.symbsim_assms = []
+        self.symbsim_asrts = []
+
     def _generate_decls_for_per(self, per: PER):
         declbase = per.logic.get_hier_path_nonindex()
         declfull = per.logic.get_hier_path("_")
@@ -290,6 +293,8 @@ class SVAGen:
                 f"{TOP_STEP_ASSERT(i)} : assert property\n"
                 + f"\t({step(i)} |-> {assert_spec});"
             )
+            self.symbsim_asrts.append(step(i))
+            self.symbsim_assms.append(step(i))
         
         return properties
 

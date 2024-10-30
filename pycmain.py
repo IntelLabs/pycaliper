@@ -1,14 +1,15 @@
 import sys
-import argparse
-import json
 import logging
 
 from pycaliper.verif.jgverifier import JGVerifier1Trace, JGVerifier2Trace, JGVerifier1TraceBMC
 from pycaliper.synth.persynthesis import PERSynthesizer
 from pycaliper.svagen import SVAGen
 from pycaliper.synth.alignsynthesis import AlignSynthesizer
-from pycaliper.pycmanager import PYCManager, PYConfig, start, PYCTask
+from pycaliper.pycmanager import start, PYCTask, PYCArgs
 
+import typer
+from typer import Argument, Option
+from typing_extensions import Annotated
 
 h1 = logging.StreamHandler(sys.stdout)
 h1.setLevel(logging.INFO)
@@ -23,10 +24,28 @@ logging.basicConfig(level=logging.DEBUG, handlers=[h1, h2])
 
 logger = logging.getLogger(__name__)
 
+DESCRIPTION = "Invariant verification and synthesis using Jasper."
+app = typer.Typer(help=DESCRIPTION)
 
-def verif_main(args):
-    if not args.bmc:
-        if args.onetrace:
+
+@app.command("verif")
+def verif_main(
+        path: Annotated[str, Argument(help="Path to the JSON config file")] = "",
+        # Allow using -m or --mock
+        mock: Annotated[bool, Option("--mock", "-m", help="Run in offline (mock) mode?")] = False,
+        # Allow using --params
+        params: Annotated[str, Option(help="Parameters for the spec module: (<key>=<intvalue>)+")] = "",
+        # Allow using -s or --sdir
+        sdir: Annotated[str, Option(help="Directory to save results to.")] = "",
+        # Allow using --port
+        port: Annotated[int, Option(help="Port number to connect to Jasper server")] = 8080,
+        # Allow using --onetrace
+        onetrace: Annotated[bool, Option(help="Verify only one-trace properties.")] = False,
+        # Allow using --bmc
+        bmc: Annotated[bool, Option(help="Perform verification with bounded model checking.")] = False):
+    args = PYCArgs(path=path, mock=mock, params=params, sdir=sdir, port=port, onetrace=onetrace, bmc=bmc)
+    if not bmc:
+        if onetrace:
             pconfig, tmgr, module = start(PYCTask.VERIF1T, args)
             verifier = JGVerifier1Trace(pconfig)
             logger.debug("Running single trace verification.")
@@ -41,9 +60,19 @@ def verif_main(args):
 
     verifier.verify(module)
 
-
-def persynth_main(args):
-
+@app.command("persynth")
+def persynth_main(
+        path: Annotated[str, Argument(help="Path to the JSON config file")] = "",
+        # Allow using -m or --mock
+        mock: Annotated[bool, Option("--mock", "-m", help="Run in offline (mock) mode?")] = False,
+        # Allow using --params
+        params: Annotated[str, Option(help="Parameters for the spec module: (<key>=<intvalue>)+")] = "",
+        # Allow using -s or --sdir
+        sdir: Annotated[str, Option(help="Directory to save results to.")] = "",
+        # Allow using --port
+        port: Annotated[int, Option(help="Port number to connect to Jasper server")] = 8080):
+    
+    args = PYCArgs(path=path, mock=mock, params=params, sdir=sdir, port=port)
     pconfig, tmgr, module = start(PYCTask.PERSYNTH, args)
 
     synthesizer = PERSynthesizer(pconfig)
@@ -53,14 +82,37 @@ def persynth_main(args):
     tmgr.save()
 
 
-def svagen_main(args):
+@app.command("svagen")
+def svagen_main(
+        path: Annotated[str, Argument(help="Path to the JSON config file")] = "",
+        # Allow using -m or --mock
+        mock: Annotated[bool, Option("--mock", "-m", help="Run in offline (mock) mode?")] = False,
+        # Allow using --params
+        params: Annotated[str, Option(help="Parameters for the spec module: (<key>=<intvalue>)+")] = "",
+        # Allow using -s or --sdir
+        sdir: Annotated[str, Option(help="Directory to save results to.")] = "",
+        # Allow using --port
+        port: Annotated[int, Option(help="Port number to connect to Jasper server")] = 8080):
+    args = PYCArgs(path=path, mock=mock, params=params, sdir=sdir, port=port)
     pconfig, tmgr, module = start(PYCTask.SVAGEN, args)
 
     svagen = SVAGen(module)
     svagen.create_pyc_specfile(k=pconfig.k, filename=pconfig.pycfile)
 
 
-def alignsynth_main(args):
+@app.command("alignsynth")
+def alignsynth_main(
+        path: Annotated[str, Argument(help="Path to the JSON config file")] = "",
+        # Allow using -m or --mock
+        mock: Annotated[bool, Option("--mock", "-m", help="Run in offline (mock) mode?")] = False,
+        # Allow using --params
+        params: Annotated[str, Option(help="Parameters for the spec module: (<key>=<intvalue>)+")] = "",
+        # Allow using -s or --sdir
+        sdir: Annotated[str, Option(help="Directory to save results to.")] = "",
+        # Allow using --port
+        port: Annotated[int, Option(help="Port number to connect to Jasper server")] = 8080):
+    args = PYCArgs(path=path, mock=mock, params=params, sdir=sdir, port=port)
+
     pconfig, tmgr, module = start(PYCTask.CTRLSYNTH, args)
 
     synthesizer = AlignSynthesizer(tmgr, pconfig)
@@ -70,7 +122,18 @@ def alignsynth_main(args):
     tmgr.save()
 
 
-def fullsynth_main(args):
+@app.command("fullsynth")
+def fullsynth_main(
+        path: Annotated[str, Argument(help="Path to the JSON config file")] = "",
+        # Allow using -m or --mock
+        mock: Annotated[bool, Option("--mock", "-m", help="Run in offline (mock) mode?")] = False,
+        # Allow using --params
+        params: Annotated[str, Option(help="Parameters for the spec module: (<key>=<intvalue>)+")] = "",
+        # Allow using -s or --sdir
+        sdir: Annotated[str, Option(help="Directory to save results to.")] = "",
+        # Allow using --port
+        port: Annotated[int, Option(help="Port number to connect to Jasper server")] = 8080):
+    args = PYCArgs(path=path, mock=mock, params=params, sdir=sdir, port=port)
     pconfig, tmgr, module = start(PYCTask.FULLSYNTH, args)
 
     # PER Synthesizer
@@ -95,85 +158,7 @@ def fullsynth_main(args):
     # PER Synthesize module
     finalmod = psynth.synthesize(asmod)
     tmgr.save_spec(finalmod)
-
     tmgr.save()
 
-
-def main(args):
-
-    DESCRIPTION = "Invariant verification and synthesis using Jasper."
-
-    argparser = argparse.ArgumentParser(description=DESCRIPTION)
-
-    cmd = argparser.add_subparsers(dest="cmd")
-
-    verif = cmd.add_parser("verif", help="Verify invariants.")
-    verif.set_defaults(func=verif_main)
-    persynth = cmd.add_parser("persynth", help="Synthesize invariants.")
-    persynth.set_defaults(func=persynth_main)
-    svagen = cmd.add_parser("svagen", help="Generate SVA spec file.")
-    svagen.set_defaults(func=svagen_main)
-    alignsynth = cmd.add_parser("alignsynth", help="Synthesize counter alignment.")
-    alignsynth.set_defaults(func=alignsynth_main)
-    fullsynth = cmd.add_parser(
-        "fullsynth", help="Synthesize 1t invariants followed by (cond)equality ones."
-    )
-    fullsynth.set_defaults(func=fullsynth_main)
-
-    argparser.add_argument("path", type=str, help="Path to the JSON config file")
-    argparser.add_argument(
-        "-m",
-        "--mock",
-        help="Run in offline (mock) mode?",
-        action="store_true",
-        default=False,
-    )
-    argparser.add_argument(
-        "--params",
-        nargs="+",
-        help="Parameters for the spec module: (<key>=<intvalue>)+",
-        default="",
-    )
-    argparser.add_argument(
-        "-s", "--sdir", type=str, help="Directory to save results to.", default=""
-    )
-    argparser.add_argument(
-        "--port",
-        type=int,
-        help="Port number to connect to Jasper server",
-        default=8080
-    )
-
-    verif.add_argument(
-        "--onetrace",
-        help="Verify only one-trace properties.",
-        action="store_true",
-        default=False,
-    )
-    verif.add_argument(
-        "--bmc",
-        help="Perform verification with bounded model checking.",
-        action="store_true",
-        default=False,
-    )
-
-    for c in [verif, persynth, svagen, alignsynth, fullsynth]:
-        c.add_argument(
-            "--params",
-            nargs="+",
-            help="Parameters for the spec module: (<key>=<intvalue>)+",
-            default="",
-        )
-
-    args = argparser.parse_args(args)
-
-    # Run main command
-    if args.cmd in ["verif", "persynth", "svagen", "alignsynth", "fullsynth"]:
-        args.func(args)
-    else:
-        argparser.print_help()
-        sys.exit(1)
-
-
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    app()
