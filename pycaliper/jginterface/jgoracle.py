@@ -105,7 +105,7 @@ def enable_assm(taskcon: str, assm: str):
     return res
 
 
-def set_assm_induction_1t(taskcon: str, k: int):
+def set_assm_induction_1t(taskcon: str, symbsim_assms: list[str]):
     """Enable only 1-trace assumptions (required for 1 trace properties)
 
     Args:
@@ -115,10 +115,10 @@ def set_assm_induction_1t(taskcon: str, k: int):
     enable_assm(taskcon, "state_inv")
     disable_assm(taskcon, "input")
     disable_assm(taskcon, "state")
-    for i in range(k):
-        disable_assm(taskcon, f"step_{i}")
+    for assm in symbsim_assms:
+        disable_assm(taskcon, assm)
 
-def set_assm_induction_2t(taskcon: str, k: int):
+def set_assm_induction_2t(taskcon: str, symbsim_assms: list[str]):
     """Enable all assumptions required for 2 trace properties
 
     Args:
@@ -128,18 +128,18 @@ def set_assm_induction_2t(taskcon: str, k: int):
     enable_assm(taskcon, "state")
     enable_assm(taskcon, "input_inv")
     enable_assm(taskcon, "state_inv")
-    for i in range(k):
-        disable_assm(taskcon, f"step_{i}")
+    for assm in symbsim_assms:
+        disable_assm(taskcon, assm)
 
-def set_assm_bmc(taskcon: str, k: int):
+def set_assm_bmc(taskcon: str, symbsim_assms: list[str]):
     """Enable all assumptions required for 1 BMC trace properties"""
     disable_assm(taskcon, "input")
     disable_assm(taskcon, "state")
     disable_assm(taskcon, "input_inv")
     disable_assm(taskcon, "state_inv")
-    for i in range(k):
-        enable_assm(taskcon, f"step_{i}")
-
+    for assm in symbsim_assms:
+        enable_assm(taskcon, assm)
+        
 
 def prove_out_induction_1t(taskcon) -> ProofResult:
     return prove(taskcon, "output_inv")

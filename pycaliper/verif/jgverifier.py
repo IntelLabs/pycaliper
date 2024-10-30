@@ -46,7 +46,7 @@ class JGVerifier1Trace(InvVerifier):
         for cand in self.candidates:
             disable_assm(self.psc.context, cand)
         # Enable the assumptions for 1 trace verification
-        set_assm_induction_1t(self.psc.context, self.psc.k)
+        set_assm_induction_1t(self.psc.context, self.svagen.symbsim_assms)
 
         res = is_pass(prove_out_induction_1t(self.psc.context))
         res_str = "SAFE" if res else "UNSAFE"
@@ -79,7 +79,7 @@ class JGVerifier2Trace(InvVerifier):
         for cand in self.candidates:
             disable_assm(self.psc.context, cand)
         # Enable the assumptions for 2 trace verification
-        set_assm_induction_2t(self.psc.context, self.psc.k)
+        set_assm_induction_2t(self.psc.context, self.svagen.symbsim_assms)
 
         res = is_pass(prove_out_induction_2t(self.psc.context))
         res_str = "SAFE" if res else "UNSAFE"
@@ -112,7 +112,7 @@ class JGVerifier1TraceBMC(InvVerifier):
         for cand in self.candidates:
             disable_assm(self.psc.context, cand)
         # Enable the assumptions for 1 trace verification
-        set_assm_bmc(self.psc.context, self.psc.k)
+        set_assm_bmc(self.psc.context, self.svagen.symbsim_assms)
 
         results = [is_pass(r) for r in prove_out_bmc(self.psc.context, self.psc.k)]
         results_str = '\n\t'.join(

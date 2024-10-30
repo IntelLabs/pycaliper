@@ -15,6 +15,8 @@ from jsonschema.exceptions import ValidationError
 from pycaliper.jginterface import jasperclient as jgc
 from pycaliper.jginterface.jgoracle import setjwd
 
+from pydantic import BaseModel
+
 from .per.per import Module
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,15 @@ class PYCTask(Enum):
     CTRLSYNTH = 4
     PERSYNTH = 5
     FULLSYNTH = 6
+
+class PYCArgs(BaseModel):
+    path : str
+    mock : bool = False
+    params : str = ""
+    sdir : str = ""
+    port : int = 8080
+    onetrace : bool = False
+    bmc : bool = False
 
 
 @dataclass
@@ -231,7 +242,7 @@ def mock_or_connect(pyconfig: PYConfig, port: int) -> bool:
         return True
 
 
-def get_pyconfig(config, args) -> PYConfig:
+def get_pyconfig(config, args: PYCArgs) -> PYConfig:
     jasperc = config.get("jasper")
     specc = config.get("spec")
     tracec = config.get("trace", {})
@@ -259,7 +270,7 @@ def get_pyconfig(config, args) -> PYConfig:
     )
 
 
-def start(task: PYCTask, args) -> tuple[PYConfig, PYCManager, Module]:
+def start(task: PYCTask, args: PYCArgs) -> tuple[PYConfig, PYCManager, Module]:
 
     with open(args.path, "r") as f:
         config = json.load(f)
