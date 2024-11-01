@@ -13,8 +13,11 @@ logger = logging.getLogger(__name__)
 
 COUNTER = "_pycinternal__counter"
 STEP = "_pycinternal__step"
-def step(k: int):
+def step_signal(k: int):
     return f"{STEP}_{k}"
+
+def step_property(k: int):
+    return f"step_{k}"
 
 def eq_sva(s: str):
     return f"eq_{s}"
@@ -287,14 +290,14 @@ class SVAGen:
 
             properties.append(
                 f"{TOP_STEP_ASSUME(i)} : assume property\n"
-                + f"\t({step(i)} |-> {assume_spec});"
+                + f"\t({step_signal(i)} |-> {assume_spec});"
             )
             properties.append(
                 f"{TOP_STEP_ASSERT(i)} : assert property\n"
-                + f"\t({step(i)} |-> {assert_spec});"
+                + f"\t({step_signal(i)} |-> {assert_spec});"
             )
-            self.symbsim_asrts.append(step(i))
-            self.symbsim_assms.append(step(i))
+            self.symbsim_asrts.append(step_property(i))
+            self.symbsim_assms.append(step_property(i))
         
         return properties
 
@@ -316,7 +319,7 @@ class SVAGen:
 \tlogic {STEP} = ({COUNTER} == {counter_width}'d{k});
 """
         for i in range(k):
-            vlog += f"\tlogic {step(i)} = ({COUNTER} == {counter_width}'d{i});\n"
+            vlog += f"\tlogic {step_signal(i)} = ({COUNTER} == {counter_width}'d{i});\n"
         return vlog
 
     
