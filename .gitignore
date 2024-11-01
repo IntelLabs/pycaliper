@@ -10,5 +10,8 @@ __pycache__
 dump
 
 
+# SVA intermediate files
+*.pyc.sv
+
 # Jasper directory
 jgproject/
