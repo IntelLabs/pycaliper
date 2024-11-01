@@ -63,7 +63,7 @@ reset_formal
 #set_engine_mode {Ht Hp B K I N D AG AM Tri}
 set_engine_mode {Ht}
 
-set_max_trace_length 3
+set_max_trace_length 4
 
 # Adds $prefix to each string in $list
 proc map_prefix {prefix list} {

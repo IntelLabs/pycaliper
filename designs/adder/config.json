@@ -7,6 +7,6 @@
     },
     "spec" : {
         "pycspec" : "adder",
-        "k"         : 2
+        "k"         : 3
     }
 }

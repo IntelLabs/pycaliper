@@ -6,7 +6,7 @@ module einter (
 
     adder #(
         .WIDTH(8)
-    ) adder_0 (
+    ) a (
         .clk_i(clk)
     );
 
