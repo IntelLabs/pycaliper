@@ -30,20 +30,6 @@ from btor2ex.btor2ex.utils import parsewrapper
 from specs.regblock import regblock
 from specs.array_nonzerobase import array_nonzerobase
 
-# h1 = logging.StreamHandler(sys.stdout)
-# h1.setLevel(logging.DEBUG)
-
-# # Info log to stdout
-
-# h1 = logging.FileHandler("debug.log", mode="w+")
-# logging.basicConfig(
-#     level=logging.DEBUG,
-#     handlers=[h1],
-#     format="%(asctime)s::%(name)s::%(levelname)s::%(message)s",
-# )
-
-# logger = logging.getLogger(__name__)
-
 h1 = logging.StreamHandler(sys.stdout)
 h1.setLevel(logging.INFO)
 h1.setFormatter(logging.Formatter("%(levelname)s::%(message)s"))
