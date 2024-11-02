@@ -42,11 +42,8 @@ class JGVerifier1Trace(InvVerifier):
         self.candidates = self.svagen.holes
 
         loadscript(self.psc.script)
-        # Disable all holes in the specification
-        for cand in self.candidates:
-            disable_assm(self.psc.context, cand)
         # Enable the assumptions for 1 trace verification
-        set_assm_induction_1t(self.psc.context, self.svagen.symbsim_assms)
+        set_assm_induction_1t(self.psc.context, self.svagen.property_context)
 
         res = is_pass(prove_out_induction_1t(self.psc.context))
         res_str = "SAFE" if res else "UNSAFE"
@@ -75,11 +72,8 @@ class JGVerifier2Trace(InvVerifier):
         self.candidates = self.svagen.holes
 
         loadscript(self.psc.script)
-        # Disable all holes in the specification
-        for cand in self.candidates:
-            disable_assm(self.psc.context, cand)
         # Enable the assumptions for 2 trace verification
-        set_assm_induction_2t(self.psc.context, self.svagen.symbsim_assms)
+        set_assm_induction_2t(self.psc.context, self.svagen.property_context)
 
         res = is_pass(prove_out_induction_2t(self.psc.context))
         res_str = "SAFE" if res else "UNSAFE"
@@ -108,11 +102,8 @@ class JGVerifier1TraceBMC(InvVerifier):
         self.candidates = self.svagen.holes
 
         loadscript(self.psc.script)
-        # Disable all holes in the specification
-        for cand in self.candidates:
-            disable_assm(self.psc.context, cand)
         # Enable the assumptions for 1 trace verification
-        set_assm_bmc(self.psc.context, self.svagen.symbsim_assms)
+        set_assm_bmc(self.psc.context, self.svagen.property_context)
 
         results = [is_pass(r) for r in prove_out_bmc(self.psc.context, self.psc.k)]
         results_str = '\n\t'.join(

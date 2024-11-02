@@ -176,9 +176,7 @@ class PERSynthesizer:
         loadscript(self.psc.script)
 
         # Enable and disable the right assumptions
-        for cand in self.candidates:
-            disable_assm(self.psc.context, cand)
-        set_assm_induction_2t(self.psc.context, self.psc.k)
+        set_assm_induction_2t(self.psc.context, self.svagen.property_context)
 
         invs = self._synthesize()
 
