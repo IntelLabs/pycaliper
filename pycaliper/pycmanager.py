@@ -2,7 +2,6 @@ import os
 import sys
 import logging
 import random
-from dataclasses import dataclass
 from enum import Enum
 
 import tempfile
@@ -41,8 +40,7 @@ class PYCArgs(BaseModel):
     bmc : bool = False
 
 
-@dataclass
-class PYConfig:
+class PYConfig(BaseModel):
     """PyCaliper configuration class"""
 
     # Is this a mock run (without Jasper access)?

@@ -4,39 +4,29 @@
 
 import sys
 import logging
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 from .per import Module, Eq, Path, Context, PER, Inv, PERHole
+from .propns import *
 
 logger = logging.getLogger(__name__)
 
 
+# Internal signals
 COUNTER = "_pycinternal__counter"
-STEP = "_pycinternal__step"
+STEP_SIGNAL = "_pycinternal__step"
 def step_signal(k: int):
-    return f"{STEP}_{k}"
+    return f"{STEP_SIGNAL}_{k}"
 
-def step_property(k: int):
-    return f"step_{k}"
+# def step_property(k: int):
+#     return f"step_{k}"
 
+# Internal wire names
 def eq_sva(s: str):
     return f"eq_{s}"
 
 def condeq_sva(s: str):
     return f"condeq_{s}"
-
-TOP_INPUT_ASSUME_2T = "A_input"
-TOP_STATE_ASSUME_2T = "A_state"
-TOP_OUTPUT_ASSERT_2T = "P_output"
-
-TOP_INPUT_ASSUME_1T = "A_input_inv"
-TOP_STATE_ASSUME_1T = "A_state_inv"
-TOP_OUTPUT_ASSERT_1T = "P_output_inv"
-
-def TOP_STEP_ASSUME(k: int):
-    return f"A_step_{k}"
-def TOP_STEP_ASSERT(k: int):
-    return f"P_step_{k}"
 
 def per_sva(mod: Module, ctx: Context):
     if ctx == Context.INPUT:
@@ -62,8 +52,7 @@ def inv_sva(mod: Module, ctx: Context):
         sys.exit(1)
 
 
-@dataclass
-class ModuleSpec:
+class ModuleSpec(BaseModel):
     # Module path
     path: Path
     input_spec_decl: str
@@ -77,6 +66,15 @@ class ModuleSpec:
     output_inv_spec_decl_single: str
 
 
+class SVAContext(BaseModel):
+    holes: list[str] = []
+    assms_2trace: list[str] = []
+    asrts_2trace: list[str] = []
+    assms_1trace: list[str] = []
+    asrts_1trace: list[str] = []
+    assms_bmc: list[str] = []
+    asrts_bmc: list[str] = []
+
 class SVAGen:
     def __init__(self, topmod: Module) -> None:
         self.topmod = topmod
@@ -84,8 +82,7 @@ class SVAGen:
 
         self.holes: dict[str, PERHole] = {}
 
-        self.symbsim_assms = []
-        self.symbsim_asrts = []
+        self.property_context = SVAContext()
 
     def _generate_decls_for_per(self, per: PER):
         declbase = per.logic.get_hier_path_nonindex()
@@ -202,16 +199,16 @@ class SVAGen:
         )
 
         self.specs[mod.path] = ModuleSpec(
-            mod.path,
-            input_decl,
-            state_decl,
-            output_decl,
-            input_inv_decl_comp,
-            state_inv_decl_comp,
-            output_inv_decl_comp,
-            input_inv_decl_single,
-            state_inv_decl_single,
-            output_inv_decl_single,
+            path=mod.path,
+            input_spec_decl=input_decl,
+            state_spec_decl=state_decl,
+            output_spec_decl=output_decl,
+            input_inv_spec_decl_comp=input_inv_decl_comp,
+            state_inv_spec_decl_comp=state_inv_decl_comp,
+            output_inv_spec_decl_comp=output_inv_decl_comp,
+            input_inv_spec_decl_single=input_inv_decl_single,
+            state_inv_spec_decl_single=state_inv_decl_single,
+            output_inv_spec_decl_single=output_inv_decl_single,
         )
 
         return (decls, assigns)
@@ -229,44 +226,53 @@ class SVAGen:
         output_props_2t = f"{per_sva(self.topmod, Context.OUTPUT)} && {output_props_1t}"
 
         properties.append(
-            f"{TOP_INPUT_ASSUME_1T} : assume property\n" + f"\t({input_props_1t});"
+            f"{get_as_assm(TOP_INPUT_1T_PROP)} : assume property\n" + f"\t({input_props_1t});"
         )
+        self.property_context.assms_1trace.append(TOP_INPUT_1T_PROP)
         properties.append(
-            f"{TOP_STATE_ASSUME_1T} : assume property\n"
-            + f"\t(!({STEP}) |-> ({state_props_1t}));"
+            f"{get_as_assm(TOP_STATE_1T_PROP)} : assume property\n"
+            + f"\t(!({STEP_SIGNAL}) |-> ({state_props_1t}));"
         )
+        self.property_context.assms_1trace.append(TOP_STATE_1T_PROP)
         properties.append(
-            f"{TOP_OUTPUT_ASSERT_1T} : assert property\n"
-            + f"\t({STEP} |-> ({state_props_1t} && {output_props_1t}));"
+            f"{get_as_prop(TOP_OUTPUT_1T_PROP)} : assert property\n"
+            + f"\t({STEP_SIGNAL} |-> ({state_props_1t} && {output_props_1t}));"
         )
+        self.property_context.asrts_1trace.append(TOP_INPUT_1T_PROP)
 
         properties.append(
-            f"{TOP_INPUT_ASSUME_2T} : assume property\n" + f"\t({input_props_2t});"
+            f"{get_as_assm(TOP_INPUT_2T_PROP)} : assume property\n" + f"\t({input_props_2t});"
         )
+        self.property_context.assms_2trace.append(TOP_INPUT_2T_PROP)
         properties.append(
-            f"{TOP_STATE_ASSUME_2T} : assume property\n"
-            + f"\t(!({STEP}) |-> ({state_props_2t}));"
+            f"{get_as_assm(TOP_STATE_2T_PROP)} : assume property\n"
+            + f"\t(!({STEP_SIGNAL}) |-> ({state_props_2t}));"
         )
+        self.property_context.assms_2trace.append(TOP_STATE_2T_PROP)
         properties.append(
-            f"{TOP_OUTPUT_ASSERT_2T} : assert property\n"
-            + f"\t({STEP} |-> ({state_props_2t} && {output_props_2t}));"
+            f"{get_as_prop(TOP_OUTPUT_2T_PROP)} : assert property\n"
+            + f"\t({STEP_SIGNAL} |-> ({state_props_2t} && {output_props_2t}));"
         )
+        self.property_context.asrts_2trace.append(TOP_OUTPUT_2T_PROP)
 
         for hole in self.topmod._perholes:
             if hole.active:
                 if isinstance(hole.per, Eq):
                     assm_prop = (
                         f"A_{eq_sva(hole.per.logic.get_hier_path_flatindex())} : assume property\n"
-                        + f"\t(!({STEP}) |-> {eq_sva(hole.per.logic.get_hier_path('_'))});"
+                        + f"\t(!({STEP_SIGNAL}) |-> {eq_sva(hole.per.logic.get_hier_path('_'))});"
                     )
                     asrt_prop = (
                         f"P_{eq_sva(hole.per.logic.get_hier_path_flatindex())} : assert property\n"
-                        + f"\t(({STEP}) |-> {eq_sva(hole.per.logic.get_hier_path('_'))});"
+                        + f"\t(({STEP_SIGNAL}) |-> {eq_sva(hole.per.logic.get_hier_path('_'))});"
                     )
                     self.holes[
                         eq_sva(hole.per.logic.get_hier_path_flatindex())
                     ] = hole.per.logic
                     properties.extend([assm_prop, asrt_prop])
+                    self.property_context.holes.append(
+                        f"{eq_sva(hole.per.logic.get_hier_path_flatindex())}"
+                    )
 
         return properties, self._generate_decls(self.topmod, a, b)
 
@@ -289,15 +295,15 @@ class SVAGen:
             assert_spec = "(\n\t" + " && \n\t".join(asserts + ["1'b1"]) + ")"
 
             properties.append(
-                f"{TOP_STEP_ASSUME(i)} : assume property\n"
+                f"{get_as_assm(TOP_STEP_PROP(i))} : assume property\n"
                 + f"\t({step_signal(i)} |-> {assume_spec});"
             )
+            self.property_context.assms_bmc.append(TOP_STEP_PROP(i))
             properties.append(
-                f"{TOP_STEP_ASSERT(i)} : assert property\n"
+                f"{get_as_prop(TOP_STEP_PROP(i))} : assert property\n"
                 + f"\t({step_signal(i)} |-> {assert_spec});"
             )
-            self.symbsim_asrts.append(step_property(i))
-            self.symbsim_assms.append(step_property(i))
+            self.property_context.asrts_bmc.append(TOP_STEP_PROP(i))
         
         return properties
 
@@ -316,7 +322,7 @@ class SVAGen:
 \t        end
 \t    end
 \tend
-\tlogic {STEP} = ({COUNTER} == {counter_width}'d{k});
+\tlogic {STEP_SIGNAL} = ({COUNTER} == {counter_width}'d{k});
 """
         for i in range(k):
             vlog += f"\tlogic {step_signal(i)} = ({COUNTER} == {counter_width}'d{i});\n"
