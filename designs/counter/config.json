@@ -1,0 +1,12 @@
+{
+    "jasper" : {
+        "jdir"      : "designs/counter",
+        "script"    : "counter.tcl",
+        "pycfile"   : "counter.pyc.sv",
+        "context"   : "<embedded>::einter"
+    },
+    "spec" : {
+        "pycspec" : "counter",
+        "k"       : 3
+    }
+}

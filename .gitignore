@@ -12,6 +12,7 @@ dump
 
 # SVA intermediate files
 *.pyc.sv
+reset.rseq
 
 # Jasper directory
 jgproject/

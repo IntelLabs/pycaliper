@@ -22,13 +22,14 @@ from pycaliper.svagen import SVAGen
 import pycaliper.jginterface.jasperclient as jgc
 from pycaliper.btorinterface.pycbtorsymex import PYCBTORSymex
 from pycaliper.verif.btorverifier import BTORVerifier2Trace
-from pycaliper.verif.jgverifier import JGVerifier1TraceBMC
+from pycaliper.verif.jgverifier import JGVerifier1TraceBMC, JGVerifier1Trace
 
 from btor2ex import BoolectorSolver
 from btor2ex.btor2ex.utils import parsewrapper
 
 from specs.regblock import regblock
 from specs.array_nonzerobase import array_nonzerobase
+from specs.counter import counter
 
 h1 = logging.StreamHandler(sys.stdout)
 h1.setLevel(logging.INFO)
@@ -45,35 +46,41 @@ logger = logging.getLogger(__name__)
 
 
 class TestSVAGen(unittest.TestCase):
-    def gen_sva(self, mod):
+    def gen_sva(self, mod, svafile):
         svagen = SVAGen(mod)
         # Write to temporary file
-        with NamedTemporaryFile(
-            mode="w+", delete=False, suffix=".sv", dir="tests/out"
-        ) as f:
+        with open(f"tests/out/{svafile}", "w") as f:
             svagen.create_pyc_specfile(k=2, filename=f.name)
             print(f"Wrote SVA specification to temporary file {f.name}")
 
     def test_array_nonzerobase(self):
-        self.gen_sva(array_nonzerobase())
+        self.gen_sva(array_nonzerobase(), "array_nonzerobase.pyc.sv")
 
     def test_regblock(self):
-        self.gen_sva(regblock())
+        self.gen_sva(regblock(), "regblock.pyc.sv")
+
+    def test_auxmodule(self):
+        self.gen_sva(counter(), "counter.pyc.sv")
 
 
 class TestVerifier(unittest.TestCase):
+    def gen_test(self, path, mock=False):
+        args = PYCArgs(
+            path=path, mock=mock, params="", sdir="", port=8080, onetrace=True, bmc=True
+        )
+        return start(PYCTask.VERIFBMC, args)
+
     def test_regblock(self):
-        jgc.MODE = jgc.ClientMode.SIM
-
-        regb = regblock()
-
-        with open("designs/regblock/config.json", "r") as f:
-            config = json.load(f)
-
-        args = Namespace(mock=True, sdir="")
-        pyconfig = get_pyconfig(config, args)
+        (pyconfig, tmgr, regb) = self.gen_test("designs/regblock/config.json")
         invverif = JGVerifier2Trace(pyconfig)
         invverif.verify(regb)
+        tmgr.close()
+
+    def test_counter(self):
+        (pyconfig, tmgr, counter) = self.gen_test("designs/counter/config.json")
+        invverif = JGVerifier1Trace(pyconfig)
+        invverif.verify(counter)
+        tmgr.close()
 
 
 class TestParser(unittest.TestCase):
@@ -126,22 +133,26 @@ class BTORInterfaceTest(unittest.TestCase):
         engine = BTORVerifier2Trace(PYCBTORSymex(BoolectorSolver("test"), prgm))
         self.assertTrue(engine.verify(regblock()))
 
+
 class SymbolicSimulator(unittest.TestCase):
-    
     def gen_test(self, path):
-        args = PYCArgs(path=path, mock=False, params="", sdir="", port=8080, onetrace=True, bmc=True)
+        args = PYCArgs(
+            path=path,
+            mock=False,
+            params="",
+            sdir="",
+            port=8080,
+            onetrace=True,
+            bmc=True,
+        )
         return start(PYCTask.VERIFBMC, args)
 
     def test_adder(self):
         (pconfig, tmgr, module) = self.gen_test("designs/adder/config.json")
-        
         verifier = JGVerifier1TraceBMC(pconfig)
         logger.debug("Running BMC verification.")
-
         verifier.verify(module)
-    
-
-
+        tmgr.close()
 
 
 if __name__ == "__main__":

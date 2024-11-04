@@ -6,7 +6,7 @@ import sys
 import logging
 from pydantic import BaseModel
 
-from .per import Module, Eq, Path, Context, PER, Inv, PERHole
+from .per import Module, Eq, Path, Context, PER, Inv, PERHole, AuxModule
 from .propns import *
 
 logger = logging.getLogger(__name__)
@@ -15,8 +15,11 @@ logger = logging.getLogger(__name__)
 # Internal signals
 COUNTER = "_pycinternal__counter"
 STEP_SIGNAL = "_pycinternal__step"
+
+
 def step_signal(k: int):
     return f"{STEP_SIGNAL}_{k}"
+
 
 # def step_property(k: int):
 #     return f"step_{k}"
@@ -25,8 +28,10 @@ def step_signal(k: int):
 def eq_sva(s: str):
     return f"eq_{s}"
 
+
 def condeq_sva(s: str):
     return f"condeq_{s}"
+
 
 def per_sva(mod: Module, ctx: Context):
     if ctx == Context.INPUT:
@@ -74,6 +79,7 @@ class SVAContext(BaseModel):
     asrts_1trace: list[str] = []
     assms_bmc: list[str] = []
     asrts_bmc: list[str] = []
+
 
 class SVAGen:
     def __init__(self, topmod: Module) -> None:
@@ -226,7 +232,8 @@ class SVAGen:
         output_props_2t = f"{per_sva(self.topmod, Context.OUTPUT)} && {output_props_1t}"
 
         properties.append(
-            f"{get_as_assm(TOP_INPUT_1T_PROP)} : assume property\n" + f"\t({input_props_1t});"
+            f"{get_as_assm(TOP_INPUT_1T_PROP)} : assume property\n"
+            + f"\t({input_props_1t});"
         )
         self.property_context.assms_1trace.append(TOP_INPUT_1T_PROP)
         properties.append(
@@ -241,7 +248,8 @@ class SVAGen:
         self.property_context.asrts_1trace.append(TOP_INPUT_1T_PROP)
 
         properties.append(
-            f"{get_as_assm(TOP_INPUT_2T_PROP)} : assume property\n" + f"\t({input_props_2t});"
+            f"{get_as_assm(TOP_INPUT_2T_PROP)} : assume property\n"
+            + f"\t({input_props_2t});"
         )
         self.property_context.assms_2trace.append(TOP_INPUT_2T_PROP)
         properties.append(
@@ -286,12 +294,18 @@ class SVAGen:
 
         Returns:
             list[str]: List of properties for each step
-        """ 
+        """
         properties = []
         for i in range(min(k, len(self.topmod._pycinternal__simsteps))):
-            assumes = [expr.get_sva(a) for expr in self.topmod._pycinternal__simsteps[i]._pycinternal__assume]
+            assumes = [
+                expr.get_sva(a)
+                for expr in self.topmod._pycinternal__simsteps[i]._pycinternal__assume
+            ]
             assume_spec = "(\n\t" + " && \n\t".join(assumes + ["1'b1"]) + ")"
-            asserts = [expr.get_sva(a) for expr in self.topmod._pycinternal__simsteps[i]._pycinternal__assert]
+            asserts = [
+                expr.get_sva(a)
+                for expr in self.topmod._pycinternal__simsteps[i]._pycinternal__assert
+            ]
             assert_spec = "(\n\t" + " && \n\t".join(asserts + ["1'b1"]) + ")"
 
             properties.append(
@@ -304,7 +318,7 @@ class SVAGen:
                 + f"\t({step_signal(i)} |-> {assert_spec});"
             )
             self.property_context.asrts_bmc.append(TOP_STEP_PROP(i))
-        
+
         return properties
 
     def counter_step(self, k: int):
@@ -328,14 +342,20 @@ class SVAGen:
             vlog += f"\tlogic {step_signal(i)} = ({COUNTER} == {counter_width}'d{i});\n"
         return vlog
 
-    
-    def create_pyc_specfile(self, k: int, a="a", b="b", filename="temp.pyc.sv"):
+    def create_pyc_specfile(
+        self, k: int, a="a", b="b", filename="temp.pyc.sv", onetrace=False
+    ):
 
         vlog = self.counter_step(k)
 
         self.topmod.instantiate()
         properties, all_decls = self.generate_decls(a, b)
         properties.extend(self.generate_step_decls(k, a))
+
+        aux_modules = []
+        # Get auxiliary modules if any
+        for _, aux_mod in self.topmod._auxmodules.items():
+            aux_modules.append(aux_mod.get_instance_str(a))
 
         with open(filename, "w") as f:
             f.write(vlog + "\n")
@@ -345,6 +365,13 @@ class SVAGen:
             for decl in all_decls[1].values():
                 f.write(decl + "\n")
 
+            # Write auxiliary modules
+            f.write("\n")
+            f.write("/////////////////////////////////////\n")
+            f.write("// Auxiliary modules\n")
+            for aux_mod in aux_modules:
+                f.write(aux_mod + "\n")
+
             for mod, spec in self.specs.items():
                 f.write("\n")
                 f.write(f"/////////////////////////////////////\n")
@@ -353,12 +380,14 @@ class SVAGen:
                 f.write(spec.input_spec_decl + "\n")
                 f.write(spec.state_spec_decl + "\n")
                 f.write(spec.output_spec_decl + "\n")
-                f.write(spec.input_inv_spec_decl_comp + "\n")
-                f.write(spec.state_inv_spec_decl_comp + "\n")
-                f.write(spec.output_inv_spec_decl_comp + "\n")
-                f.write(spec.input_inv_spec_decl_single + "\n")
-                f.write(spec.state_inv_spec_decl_single + "\n")
-                f.write(spec.output_inv_spec_decl_single + "\n")
+                if not onetrace:
+                    f.write(spec.input_inv_spec_decl_comp + "\n")
+                    f.write(spec.state_inv_spec_decl_comp + "\n")
+                    f.write(spec.output_inv_spec_decl_comp + "\n")
+                else:
+                    f.write(spec.input_inv_spec_decl_single + "\n")
+                    f.write(spec.state_inv_spec_decl_single + "\n")
+                    f.write(spec.output_inv_spec_decl_single + "\n")
 
             f.write("\n")
             f.write("/////////////////////////////////////\n")
