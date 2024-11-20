@@ -14,6 +14,8 @@ from .per import (
     PERHole,
     CtrAlignHole,
     SVFunc,
+    AuxPort,
+    AuxModule,
     rose,
     fell,
 )

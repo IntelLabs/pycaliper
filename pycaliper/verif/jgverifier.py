@@ -12,7 +12,7 @@ from ..jginterface.jgoracle import (
     disable_assm,
     set_assm_induction_1t,
     set_assm_induction_2t,
-    set_assm_bmc
+    set_assm_bmc,
 )
 
 from .invverifier import InvVerifier
@@ -38,7 +38,9 @@ class JGVerifier1Trace(InvVerifier):
         """
 
         self.svagen = svagen.SVAGen(module)
-        self.svagen.create_pyc_specfile(filename=self.psc.pycfile, k=self.psc.k)
+        self.svagen.create_pyc_specfile(
+            filename=self.psc.pycfile, k=self.psc.k, onetrace=True
+        )
         self.candidates = self.svagen.holes
 
         loadscript(self.psc.script)
@@ -80,6 +82,7 @@ class JGVerifier2Trace(InvVerifier):
         logger.info(f"Two trace verification result: {res_str}")
         return res
 
+
 class JGVerifier1TraceBMC(InvVerifier):
     """One trace property verifier with BMC"""
 
@@ -106,7 +109,11 @@ class JGVerifier1TraceBMC(InvVerifier):
         set_assm_bmc(self.psc.context, self.svagen.property_context)
 
         results = [is_pass(r) for r in prove_out_bmc(self.psc.context, self.psc.k)]
-        results_str = '\n\t'.join(
-            [f"Step {i}: SAFE" if res else f"Step {i}: UNSAFE" for (i, res) in enumerate(results)])
+        results_str = "\n\t".join(
+            [
+                f"Step {i}: SAFE" if res else f"Step {i}: UNSAFE"
+                for (i, res) in enumerate(results)
+            ]
+        )
         logger.info(f"One trace verification result:\n\t{results_str}")
         return results

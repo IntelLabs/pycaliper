@@ -30,14 +30,15 @@ class PYCTask(Enum):
     PERSYNTH = 5
     FULLSYNTH = 6
 
+
 class PYCArgs(BaseModel):
-    path : str
-    mock : bool = False
-    params : str = ""
-    sdir : str = ""
-    port : int = 8080
-    onetrace : bool = False
-    bmc : bool = False
+    path: str
+    mock: bool = False
+    params: str = ""
+    sdir: str = ""
+    port: int = 8080
+    onetrace: bool = False
+    bmc: bool = False
 
 
 class PYConfig(BaseModel):
@@ -64,6 +65,8 @@ class PYConfig(BaseModel):
     pycspec: str = ""
     # bound to use for the k-inductive proof
     k: int = 1
+    # Use only one trace for verification
+    onetrace: bool = False
 
     # Directory of pre-provided traces
     tdir: str = ""
@@ -81,9 +84,14 @@ class PYCManager:
         self.pycspec: str = pyconfig.pycspec
         # Previous VCD traces directory
 
+        self.pyconfig = pyconfig
         self.sdir = pyconfig.sdir
 
-        self.wdir = tempfile.TemporaryDirectory(prefix="pyc_wdir_").name
+        # Create a temporary directory for the run, grab the name, and clean it up
+        wdir = tempfile.TemporaryDirectory(prefix="pyc_wdir_")
+        self.wdir = wdir.name
+        wdir.cleanup()
+
         logger.info(f"Working directory: {self.wdir}")
         self.tracedir = f"{self.wdir}/traces"
         self.specdir = f"{self.wdir}/specs"
@@ -141,6 +149,13 @@ class PYCManager:
             # Copy wdir to sdir
             os.system(f"cp -r {self.wdir}/. {self.sdir}/")
 
+    def close(self):
+        # Close the socket
+        self.save()
+        if not self.pyconfig.mock:
+            jgc.close_tcp()
+        logger.info("PyCaliper run completed, socket closed.")
+
 
 CONFIG_SCHEMA = {
     "type": "object",
@@ -192,7 +207,7 @@ CONFIG_SCHEMA = {
 
 def create_module(specc, args):
     """Dynamically import the spec module and create an instance of it."""
-    specmod : str = specc["pycspec"]
+    specmod: str = specc["pycspec"]
     params = specc.get("params", {})
 
     parsed_conf = {}
@@ -202,9 +217,9 @@ def create_module(specc, args):
 
     params.update(parsed_conf)
 
-    if '/' in specmod:
+    if "/" in specmod:
         # Split the module name into the module name and the parent package
-        module_path, module_name = specmod.rsplit('/', 1)
+        module_path, module_name = specmod.rsplit("/", 1)
 
         # Check if the path exists
         if not os.path.isdir(module_path):
@@ -212,14 +227,18 @@ def create_module(specc, args):
             exit(1)
         # Add the module path to sys.path
         sys.path.append(module_path)
-    
+
         try:
             # Import the module using importlib
             module = importlib.import_module(module_name)
-            logger.debug(f"Successfully imported module: {module_name} from {module_path}")
+            logger.debug(
+                f"Successfully imported module: {module_name} from {module_path}"
+            )
             return getattr(module, module_name)(**params)
         except ImportError as e:
-            logger.error(f"Error importing module {module_name} from {module_path}: {e}")
+            logger.error(
+                f"Error importing module {module_name} from {module_path}: {e}"
+            )
             return None
         finally:
             # Clean up: remove the path from sys.path to avoid potential side effects
@@ -259,6 +278,7 @@ def get_pyconfig(config, args: PYCArgs) -> PYConfig:
         # Spec config
         pycspec=specc["pycspec"],
         k=specc["k"],
+        onetrace=args.onetrace,
         # Tracing configuration
         # Location where traces are provided
         tdir=tracec.get("tdir", ""),
