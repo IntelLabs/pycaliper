@@ -3,6 +3,7 @@ import logging
 import os
 
 from . import jasperclient as jgc
+from ..svagen import SVAContext
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def prove(taskcon: str, prop: str) -> ProofResult:
     Returns:
         ProofResult: result of the proof
     """
-    prop_wctx = get_as_asrt_name(taskcon, prop)
+    prop_wctx = get_wctx(taskcon, f"P_{prop}")
     logger.debug(f"Proving property: {prop_wctx}")
     cmd = f"prove -property {{ {prop_wctx} }}"
     res: str = jgc.eval(cmd)
@@ -43,7 +44,7 @@ def is_pass(res: ProofResult) -> bool:
     return res in [ProofResult.SAFE, ProofResult.MAX_TRACE_LENGTH, ProofResult.PROVEN]
 
 
-def get_as_assm_name(taskcon: str, prop: str) -> str:
+def get_wctx(taskcon: str, prop: str) -> str:
     """Get the hierarchical assumption name for a property wire
 
     Args:
@@ -53,20 +54,7 @@ def get_as_assm_name(taskcon: str, prop: str) -> str:
     Returns:
         str: hierarchical assumption name
     """
-    return f"{taskcon}.A_{prop}"
-
-
-def get_as_asrt_name(taskcon: str, prop: str) -> str:
-    """Get the hierarchical assertion name for a property wire
-
-    Args:
-        taskcon (str): proof node name under which the property is defined
-        prop (str): property name
-
-    Returns:
-        str: hierarchical assertion name
-    """
-    return f"{taskcon}.P_{prop}"
+    return f"{taskcon}.{prop}"
 
 
 def disable_assm(taskcon: str, assm: str):
@@ -79,7 +67,7 @@ def disable_assm(taskcon: str, assm: str):
     Returns:
         _type_: result of the JasperGold command
     """
-    assm_wctx = get_as_assm_name(taskcon, assm)
+    assm_wctx = get_wctx(taskcon, f"A_{assm}")
     logger.debug(f"Disabling assumption: {assm_wctx}")
     cmd = f"assume -disable {assm_wctx}"
     res = jgc.eval(cmd)
@@ -97,7 +85,7 @@ def enable_assm(taskcon: str, assm: str):
     Returns:
         _type_: result of the JasperGold command
     """
-    assm_wctx = get_as_assm_name(taskcon, assm)
+    assm_wctx = get_wctx(taskcon, f"A_{assm}")
     logger.debug(f"Enabling assumption: {assm_wctx}")
     cmd = f"assume -enable {assm_wctx}"
     res = jgc.eval(cmd)
@@ -105,37 +93,62 @@ def enable_assm(taskcon: str, assm: str):
     return res
 
 
-def enable_assm_1t(taskcon: str):
+def set_assm_induction_1t(taskcon: str, svacon: SVAContext):
     """Enable only 1-trace assumptions (required for 1 trace properties)
 
     Args:
         taskcon (str): proof node name
     """
-    enable_assm(taskcon, "input_inv")
-    enable_assm(taskcon, "state_inv")
-    disable_assm(taskcon, "input")
-    disable_assm(taskcon, "state")
+    for cand in svacon.holes:
+        disable_assm(taskcon, cand)
+    for assm in svacon.assms_2trace:
+        disable_assm(taskcon, assm)
+    for assm in svacon.assms_1trace:
+        enable_assm(taskcon, assm)
+    for assm in svacon.assms_bmc:
+        disable_assm(taskcon, assm)
 
-
-def enable_assm_2t(taskcon: str):
+def set_assm_induction_2t(taskcon: str, svacon: SVAContext):
     """Enable all assumptions required for 2 trace properties
 
     Args:
         taskcon (str): proof node name
     """
-    enable_assm(taskcon, "input")
-    enable_assm(taskcon, "state")
-    enable_assm(taskcon, "input_inv")
-    enable_assm(taskcon, "state_inv")
+    # Disable all holes in the specification
+    for cand in svacon.holes:
+        disable_assm(taskcon, cand)
+    for assm in svacon.assms_2trace:
+        enable_assm(taskcon, assm)
+    for assm in svacon.assms_1trace:
+        disable_assm(taskcon, assm)
+    for assm in svacon.assms_bmc:
+        disable_assm(taskcon, assm)
 
+def set_assm_bmc(taskcon: str, svacon: SVAContext):
+    """Enable all assumptions required for 1 BMC trace properties"""
+    # Disable all holes
+    for cand in svacon.holes:
+        disable_assm(taskcon, cand)
+    for assm in svacon.assms_2trace:
+        disable_assm(taskcon, assm)
+    for assm in svacon.assms_1trace:
+        disable_assm(taskcon, assm)
+    for assm in svacon.assms_bmc:
+        enable_assm(taskcon, assm)
+        
 
-def prove_out_1t(taskcon):
+def prove_out_induction_1t(taskcon) -> ProofResult:
     return prove(taskcon, "output_inv")
 
 
-def prove_out_2t(taskcon):
+def prove_out_induction_2t(taskcon) -> ProofResult:
     return prove(taskcon, "output")
 
+def prove_out_bmc(taskcon, k: int) -> list[ProofResult]:
+    results = []
+    for i in range(k):
+        results.append(prove(taskcon, f"step_{i}"))
+    return results
 
 def loadscript(script):
     # Get pwd

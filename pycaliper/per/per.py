@@ -142,8 +142,9 @@ class Path:
 class TypedElem:
     """An element in the design hierarchy (Logic, LogicArray, Struct, ...) with a type."""
 
-    def __init__(self):
+    def __init__(self, root: str = None):
         self.name = ""
+        self.root = root
         pass
 
     def instantiate(self, path: Path):
@@ -159,7 +160,7 @@ class TypedElem:
 class Logic(Expr, TypedElem):
     """Class for single bitvectors/signals"""
 
-    def __init__(self, width: int = 1, name: str = "") -> None:
+    def __init__(self, width: int = 1, name: str = "", root: str = None) -> None:
         """
         Args:
             width (int, optional): width of logic signal. Defaults to 1.
@@ -173,6 +174,8 @@ class Logic(Expr, TypedElem):
         self.path: Path = Path([])
         # If member of a logic array, this is the parent array
         self.parent = None
+        # Root
+        self.root = root
 
     def instantiate(self, path: Path, parent: "LogicArray" = None) -> "Logic":
         """Instantiate the logic signal with a path and parent array
@@ -212,6 +215,8 @@ class Logic(Expr, TypedElem):
         Returns:
             str: SVA representation of the signal.
         """
+        if self.root is not None:
+            return f"{self.root}.{self.get_hier_path()}"
         return f"{pref}.{self.get_hier_path()}"
 
     def is_arr_elem(self) -> bool:
@@ -261,6 +266,7 @@ class LogicArray(TypedElem):
         size: int,
         base: int = 0,
         name: str = "",
+        root: str = None,
     ):
         """An array of logic signals
 
@@ -402,17 +408,20 @@ class Inv:
 class Struct(TypedElem):
     """Struct as seen in SV"""
 
-    def __init__(self, name="", **kwargs) -> None:
+    def __init__(self, name="", root: str = None, **kwargs) -> None:
         self.name = name
         self.params = kwargs
         self.path = Path([])
         self._signals: dict[str, TypedElem] = {}
         self._pycinternal__state: list[PER] = []
+        self.root = root
 
     def _typ(self):
         return self.__class__.__name__
 
     def get_sva(self, pref: str = "a") -> str:
+        if self.root is not None:
+            return f"{self.root}.{self.name}"
         return f"{pref}.{self.name}"
 
     def __str__(self) -> str:
@@ -607,6 +616,7 @@ class Context(Enum):
     INPUT = 0
     STATE = 1
     OUTPUT = 2
+    UNROLL = 3
 
 
 class Hole:
@@ -661,6 +671,33 @@ def when(cond: Expr):
     return _lambda
 
 
+class SimulationStep:
+    def __init__(self) -> None:
+        self._pycinternal__assume: list[Expr] = []
+        self._pycinternal__assert: list[Expr] = []
+
+    def _assume(self, expr: Expr):
+        self._pycinternal__assume.append(expr)
+
+    def _assert(self, expr: Expr):
+        self._pycinternal__assert.append(expr)
+
+
+def unroll(b: int):
+    def unroll_decorator(func):
+        def wrapper(self: Module, *args):
+            for i in range(b):
+                self._pycinternal__simstep = SimulationStep()
+                func(self, i)
+                self._pycinternal__simsteps.append(
+                    copy.deepcopy(self._pycinternal__simstep)
+                )
+
+        return wrapper
+
+    return unroll_decorator
+
+
 class Module:
     """Module class for specifications related to a SV HW module"""
 
@@ -691,10 +728,15 @@ class Module:
         self._pycinternal__input_invs: list[Inv] = []
         self._pycinternal__state_invs: list[Inv] = []
         self._pycinternal__output_invs: list[Inv] = []
+        # Non-invariant properties
+        self._pycinternal__simsteps: list[SimulationStep] = []
+        self._pycinternal__simstep: SimulationStep = SimulationStep()
         # PER holes
         self._perholes: list[PERHole] = []
         # CtrAlign holes
         self._caholes: list[CtrAlignHole] = []
+
+        self._auxmodules: dict[str, AuxModule] = {}
 
     # Invariant functions to be overloaded by descendant specification classes
     def input(self) -> None:
@@ -704,6 +746,9 @@ class Module:
         pass
 
     def output(self) -> None:
+        pass
+
+    def simstep(self, i: int = 0) -> None:
         pass
 
     def eq(self, *elems: TypedElem) -> None:
@@ -820,6 +865,32 @@ class Module:
         else:
             self._pycinternal__output_invs.append(Inv(expr))
 
+    def pycassert(self, expr: Expr) -> None:
+        """Add an assertion to the current context.
+
+        Args:
+            expr (Expr): the assertion expression.
+        """
+        if self._context == Context.UNROLL:
+            self._pycinternal__simstep._assert(expr)
+        else:
+            logger.warning(
+                "pycassert can only be used in the unroll context, skipping."
+            )
+
+    def pycassume(self, expr: Expr) -> None:
+        """Add an assumption to the current context.
+
+        Args:
+            expr (Expr): the assumption expression.
+        """
+        if self._context == Context.UNROLL:
+            self._pycinternal__simstep._assume(expr)
+        else:
+            logger.warning(
+                "pycassume can only be used in the unroll context, skipping."
+            )
+
     def instantiate(self, path: Path = Path([])) -> "Module":
         """Instantiate the current Module.
 
@@ -838,6 +909,7 @@ class Module:
         groupattrs = {}
         funcattrs = {}
         submoduleattrs = {}
+        auxmoduleattrs = {}
         for attr in dir(self):
             obj = getattr(self, attr)
             if (
@@ -857,6 +929,11 @@ class Module:
                 if obj.name == "":
                     obj.name = attr
                 funcattrs[obj.name] = obj
+            elif isinstance(obj, AuxModule):
+                # Current module must be top level
+                if obj.name == "":
+                    obj.name = attr
+                auxmoduleattrs[obj.name] = obj.instantiate(path.add_level(obj.name))
             elif isinstance(obj, Module):
                 if obj.name == "":
                     obj.name = attr
@@ -865,6 +942,7 @@ class Module:
         self._groups = groupattrs
         self._functions = funcattrs
         self._submodules = submoduleattrs
+        self._auxmodules = auxmoduleattrs
         # Call the specification generator methods.
         self._context = Context.INPUT
         self.input()
@@ -872,6 +950,9 @@ class Module:
         self.state()
         self._context = Context.OUTPUT
         self.output()
+        # Run through simulation steps
+        self._context = Context.UNROLL
+        self.simstep()
         self._instantiated = True
         return self
 
@@ -999,6 +1080,52 @@ class {self.__class__.__name__}(Module):
 
     def pprint(self):
         print(self.sprint())
+
+
+class AuxPort(Logic):
+    def __init__(self, width: int = 1, name: str = "", root: str = None) -> None:
+        super().__init__(width, name, root)
+
+
+class AuxModule(Module):
+    def __init__(self, portmapping: dict[str, TypedElem], name="", **kwargs) -> None:
+        super().__init__(name, **kwargs)
+        self._pycinternal__ports = {}
+        self.portmapping = portmapping
+
+    def instantiate(self, root: Path = Path([])) -> None:
+        self.path = Path([])
+        for attr in dir(self):
+            obj = getattr(self, attr)
+            if isinstance(obj, AuxPort):
+                self._pycinternal__ports[obj.name] = obj.instantiate(
+                    self.path.add_level(obj.name)
+                )
+                obj.root = root.get_hier_path()
+            elif isinstance(obj, TypedElem):
+                obj.root = root.get_hier_path()
+                obj.instantiate(self.path.add_level(obj.name))
+        # Check that all ports are mapped
+        for k in self.portmapping:
+            if k not in self._pycinternal__ports:
+                logger.error(f"Port {k} not found in {self.__class__.__name__}")
+                sys.exit(1)
+        return self
+
+    def get_instance_str(self, bindm: str):
+        portbindings = []
+        for k, v in self.portmapping.items():
+            portbindings.append(f".{k}({bindm}.{v})")
+        portbindings = ",\n\t".join(portbindings)
+
+        aux_mod_decl = f"""
+// Module {self.get_hier_path()}
+{self.__class__.__name__} {self.name} (
+        // Bindings
+        {portbindings}
+);
+"""
+        return aux_mod_decl
 
 
 # SVA-specific functions
