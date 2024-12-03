@@ -19,5 +19,5 @@ referencing==0.35.1
 rpds-py==0.20.0
 vcdvcd==2.3.5
 virtualenv==20.26.3
-pydantic==1.10.0
+pydantic==1.10.13
 typer==0.12.5
