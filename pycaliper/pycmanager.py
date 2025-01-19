@@ -229,12 +229,20 @@ def create_module(specc, args):
         sys.path.append(module_path)
 
         try:
-            # Import the module using importlib
-            module = importlib.import_module(module_name)
-            logger.debug(
-                f"Successfully imported module: {module_name} from {module_path}"
-            )
-            return getattr(module, module_name)(**params)
+            if "." in module_name:
+                module_name, class_name = module_name.rsplit(".", 1)
+                module = importlib.import_module(module_name)
+                logger.debug(
+                    f"Successfully imported module: {module_name} from {module_path}"
+                )
+                return getattr(module, class_name)(**params)
+            else:
+                # Import the module using importlib
+                module = importlib.import_module(module_name)
+                logger.debug(
+                    f"Successfully imported module: {module_name} from {module_path}"
+                )
+                return getattr(module, module_name)(**params)
         except ImportError as e:
             logger.error(
                 f"Error importing module {module_name} from {module_path}: {e}"
